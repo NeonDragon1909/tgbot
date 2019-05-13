@@ -72,16 +72,37 @@ class WelcomeMute(BASE):
         self.welcomemutes = welcomemutes
 
 
+class VerifiedUser(BASE):
+    __tablename__ = "verified_user"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    def __init__(self, id):
+        self.id = id
+
 
 Welcome.__table__.create(checkfirst=True)
 WelcomeButtons.__table__.create(checkfirst=True)
 GoodbyeButtons.__table__.create(checkfirst=True)
 WelcomeMute.__table__.create(checkfirst=True)
+VerifiedUser.__table__.create(checkfirst=True)
 
 INSERTION_LOCK = threading.RLock()
 WELC_BTN_LOCK = threading.RLock()
 LEAVE_BTN_LOCK = threading.RLock()
 WM_LOCK = threading.RLock()
+
+def check_user(id):
+    status = SESSION.query(VerifiedUser).get(id)
+    SESSION.close()
+    if status:
+        return True
+    return False
+
+def verify_user(id):
+    with INSERTION_LOCK:
+        verify = VerifiedUser(id)
+        SESSION.add(verify)
+        SESSION.commit()
 
 def welcome_mutes(chat_id):
     try:

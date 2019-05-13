@@ -87,6 +87,28 @@ def new_member(bot: Bot, update: Update):
     chat_name = chat.title or chat.first or chat.username # type: Optional:[chat name]
     should_welc, cust_welcome, welc_type = sql.get_welc_pref(chat.id)
     welc_mutes = sql.welcome_mutes(chat.id)
+    #Safe mode
+    if welc_mutes:
+        new_members = update.effective_message.new_chat_members
+        for new_mem in new_members:
+            status = sql.check_status(new_mem.id)
+            #Sudo user exception from mutes:
+            if is_user_ban_protected(chat, new_mem.id, chat.get_member(new_mem.id)):
+                continue
+            #Skip users already verified in other chats
+            if status:
+                continue
+            msg.reply_text("Click the button below to prove you're human",
+                           reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Yes, I'm a human",
+                           callback_data="userverify_({})".format(new_mem.id))]]))
+            bot.restrict_chat_member(chat.id, new_mem.id,
+                                     can_send_messages=False,
+                                     can_send_media_messages=False,
+                                     can_send_other_messages=False,
+                                     can_add_web_page_previews=False)
+            sleep(welc_mutes)
+            if status is not True:
+                chat.kick_member(new_mem.id)
     if should_welc:
         sent = None
         new_members = update.effective_message.new_chat_members
@@ -141,20 +163,6 @@ def new_member(bot: Bot, update: Update):
                             sql.DEFAULT_WELCOME.format(first=first_name))  # type: Optional[Message]
 
 
-                #Sudo user exception from mutes:
-                if is_user_ban_protected(chat, new_mem.id, chat.get_member(new_mem.id)):
-                    continue
-
-                #Safe mode
-                if welc_mutes == "on":
-                    msg.reply_text("Click the button below to prove you're human",
-                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Yes, I'm a human",
-                         callback_data="userverify_({})".format(new_mem.id))]]))
-                    bot.restrict_chat_member(chat.id, new_mem.id,
-                                             can_send_messages=False,
-                                             can_send_media_messages=False,
-                                             can_send_other_messages=False,
-                                             can_add_web_page_previews=False)
             delete_join(bot, update)
 
         prev_welc = sql.get_clean_pref(chat.id)
@@ -394,7 +402,7 @@ def safemode(bot: Bot, update: Update, args: List[str]) -> str:
     msg = update.effective_message # type: Optional[Message]
 
     if len(args) >= 1:
-        if  args[0].lower() in ("off", "no"):
+        if  args[0].lower() in ("off", "no", "0"):
             sql.set_welcome_mutes(chat.id, False)
             msg.reply_text("I will no longer mute people on joining!")
             return "<b>{}:</b>" \
@@ -403,20 +411,35 @@ def safemode(bot: Bot, update: Update, args: List[str]) -> str:
                    "\nHas toggled welcome mute to <b>OFF</b>.".format(html.escape(chat.title),
                                                                       mention_html(user.id, user.first_name))
         elif args[0].lower() in ("on", "yes"):
-             sql.set_welcome_mutes(chat.id, "on")
+             sql.set_welcome_mutes(chat.id, "30")
              msg.reply_text("I will now mute people when they join and"
-                           " click on the button to be unmuted.")
+                            "click on the button to be unmuted."
+                            "Default timeout (30s) used." )
              return "<b>{}:</b>" \
                     "\n#SAFE_MODE" \
                     "\n<b>• Admin:</b> {}" \
-                    "\nHas toggled welcome mute to <b>ON</b>.".format(html.escape(chat.title),
-                                                                          mention_html(user.id, user.first_name))
+                    "\nHas toggled welcome mute to <b>ON</b>." \
+                    "\n30s timeout set.".format(html.escape(chat.title),
+                                         mention_html(user.id, user.first_name))
+       elif args[0].lower().isdigit and int(args[0].lower()) > 0:
+             timeout = int(args[0].lower())
+             sql.set_welcome_mutes(chat.id, timeout)
+             msg.reply_text("I will now mute people when they join and"
+                            "click on the button to be unmuted."
+                            "{}s timeout used." ).format(timeout)
+             return "<b>{}:</b>" \
+                    "\n#SAFE_MODE" \
+                    "\n<b>• Admin:</b> {}" \
+                    "\nHas toggled welcome mute to <b>ON</b>." \
+                    "\n{}s timeout set.".format(html.escape(chat.title),
+                                         mention_html(user.id, user.first_name)
+                                         timeout)
         else:
-            msg.reply_text("Please enter `on`/`off`!", parse_mode=ParseMode.MARKDOWN)
+            msg.reply_text("Please enter `on`/`off` or a positive int", parse_mode=ParseMode.MARKDOWN)
             return ""
     else:
         curr_setting = sql.welcome_mutes(chat.id)
-        reply = "\n Give me a setting! Choose one of `on`/`yes` or `off`/`no` only! \nCurrent setting: `{}`"
+        reply = "\n Give me a setting! Choose one of `on`/`yes` or `off`/`no` or a positive int only! \nCurrent setting: `{}`"
         msg.reply_text(reply.format(curr_setting), parse_mode=ParseMode.MARKDOWN)
         return ""
 
@@ -492,7 +515,6 @@ def del_joined(bot: Bot, update: Update, args: List[str]) -> str:
         update.effective_message.reply_text("I understand 'on/yes' or 'off/no' only!")
         return ""
 
-
 @run_async
 def delete_join(bot: Bot, update: Update):
     chat = update.effective_chat  # type: Optional[Chat]
@@ -519,6 +541,7 @@ def user_button(bot: Bot, update: Update):
                                                    can_add_web_page_previews=False,
                                                    until_date=(int(time.time() + 24 * 60 * 60)))
         bot.deleteMessage(chat.id, message.message_id)
+        sql.verify_user(user.id)
     else:
         query.answer(text="Fuck off, this button is not for you!")
 
