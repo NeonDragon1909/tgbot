@@ -101,7 +101,7 @@ def new_member(bot: Bot, update: Update):
                 continue
             # Make bot greet admins
             elif new_mem.id == bot.id:
-                update.effective_message.reply_text("Hey {}, I'm {}! Thank you for adding me to {}" 
+                update.effective_message.reply_text("Hey {}, I'm {}! Thank you for adding me to {}"
                 " and be sure to check /help in PM for more commands and tricks!".format(user.first_name, bot.first_name, chat_name))
 
             else:
@@ -139,8 +139,8 @@ def new_member(bot: Bot, update: Update):
 
                 sent = send(update, res, keyboard,
                             sql.DEFAULT_WELCOME.format(first=first_name))  # type: Optional[Message]
-            
-                
+
+
                 #Sudo user exception from mutes:
                 if is_user_ban_protected(chat, new_mem.id, chat.get_member(new_mem.id)):
                     continue
@@ -148,12 +148,12 @@ def new_member(bot: Bot, update: Update):
                 #Safe mode
                 if welc_mutes == "on":
                     msg.reply_text("Click the button below to prove you're human",
-                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Yes, I'm a human", 
+                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Yes, I'm a human",
                          callback_data="userverify_({})".format(new_mem.id))]]))
-                    bot.restrict_chat_member(chat.id, new_mem.id, 
-                                             can_send_messages=False, 
-                                             can_send_media_messages=False, 
-                                             can_send_other_messages=False, 
+                    bot.restrict_chat_member(chat.id, new_mem.id,
+                                             can_send_messages=False,
+                                             can_send_media_messages=False,
+                                             can_send_other_messages=False,
                                              can_add_web_page_previews=False)
             delete_join(bot, update)
 
@@ -392,7 +392,7 @@ def safemode(bot: Bot, update: Update, args: List[str]) -> str:
     chat = update.effective_chat  # type: Optional[Chat]
     user = update.effective_user  # type: Optional[User]
     msg = update.effective_message # type: Optional[Message]
-    
+
     if len(args) >= 1:
         if  args[0].lower() in ("off", "no"):
             sql.set_welcome_mutes(chat.id, False)
@@ -501,7 +501,7 @@ def delete_join(bot: Bot, update: Update):
         del_join = sql.get_del_pref(chat.id)
         if del_join:
             update.message.delete()
-            
+
 @run_async
 def user_button(bot: Bot, update: Update):
     chat = update.effective_chat  # type: Optional[Chat]
@@ -510,12 +510,12 @@ def user_button(bot: Bot, update: Update):
     match = re.match(r"userverify_\((.+?)\)", query.data)
     message = update.effective_message  # type: Optional[Message]
     join_user =  int(match.group(1))
-    
+
     if join_user == user.id:
         query.answer(text="Yup, you're very human, you have now the right to speak!")
-        bot.restrict_chat_member(chat.id, user.id, can_send_messages=True, 
-                                                   can_send_media_messages=False, 
-                                                   can_send_other_messages=False, 
+        bot.restrict_chat_member(chat.id, user.id, can_send_messages=True,
+                                                   can_send_media_messages=False,
+                                                   can_send_other_messages=False,
                                                    can_add_web_page_previews=False,
                                                    until_date=(int(time.time() + 24 * 60 * 60)))
         bot.deleteMessage(chat.id, message.message_id)
